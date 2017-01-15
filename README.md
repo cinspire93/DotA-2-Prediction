@@ -7,6 +7,6 @@ The project will focus on predicting DotA 2 match outcomes. The project proposal
 2. Data for each game contains massive amounts of information, I would engineer features through aggregation and normalization to make the data more informative.
 3. Make player brackets based on a more objective skill rating (not the Valve official MMR); I will work to devise such a system.
 4. Run different classification model on every player bracket to account for the differences in player skills, which can extend to how they think about strategies.
-5. Recommend best hero compositions for players in bracket i with model results from bracket i+1.
+5. Recommend best hero compositions/strategies for players in bracket i with max predicted win-rate of the model in bracket i+1.
 
 It is important to note that my project outlook can still change as I dive into it for the next 3~4 weeks. I will keep updating this repo to account for any change in plans.
