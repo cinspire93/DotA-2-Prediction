@@ -88,21 +88,35 @@ def construct_num_team_fights(team_fights_df, threshold=600):
     '''
     num_team_fights_df = pd.DataFrame(team_fights_df[team_fights_df.end < threshold].groupby('match_id')['start'].count())
     num_team_fights_df = num_team_fights_df.rename(columns={'start': 'count'})
-    return pd.DataFrame(index=range(50000)).join(num_team_fights_df).fillna(0)
+    return pd.DataFrame(index=range(50000)).join(num_team_fights_df).fillna(0).astype(int)
 
 def construct_net_death_count_from_teamfights(teamfight_players_df, num_team_fights_df):
     '''
-    Input: teamfight info for players by match, number of teamfights before 10 min by match
-    Output: net gold change for radiant and dire by players in each match before 10 mins
+    Input: teamfight info for players by match, number of teamfights before 10 mins by match
+    Output: net death count for radiant and dire players from all teamfights before 10 mins in each match
     '''
-    net_death_count = pd.DataFrame(index=range(50000), columns=['net_death_count_radiant', 'net_death_count_dire'])
-    for match_number in xrange(50000):
-        num_team_fights = num_team_fights_df.ix[match_number, 0]
-        match_teamfights_before_ten_min = teamfight_players_df[teamfight_players_df.match_id==match_number].reset_index(drop=True).ix[:num_team_fights*10-1]
-        radiant_net_death_count = match_teamfights_before_ten_min[match_teamfights_before_ten_min.player_slot<50]['deaths'].sum()
-        dire_net_death_count = match_teamfights_before_ten_min[match_teamfights_before_ten_min.player_slot>50]['deaths'].sum()
-        net_death_count.ix[match_number] = radiant_net_death_count, dire_net_death_count
-    return net_death_count
+    team_fights_before_ten_min_raw = teamfight_players_df.groupby('match_id')\
+                                    .apply(get_net_death_count, num_team_fights_df=num_team_fights_df)
+    # The missing_index is very important here, as it captures matches where no team fights happened(abandoned).
+    # In this case, groupby('match_id') will not give us those matches, so we have to fill them in manually with missing_index
+    missing_index = np.array(list(set(range(50000)) - set(team_fights_before_ten_min_raw.index)))
+    team_fights_before_ten_min_raw = team_fights_before_ten_min_raw.reindex(index=range(50000), fill_value=[0, 0])
+    return pd.DataFrame(team_fights_before_ten_min_raw.apply(pd.Series).values, index=range(50000),
+                        columns=['radiant_net_death_count', 'dire_net_death_count'])
+
+def get_net_death_count(single_game_teamfight_info, num_team_fights_df):
+    '''
+    Input: teamfight info for a single match, number of teamfights before 10 mins by match
+    Output: net death count for radiant and dire players from all teamfights before 10 mins in that single match
+    '''
+    match_id = int(single_game_teamfight_info['match_id'].mean())
+    num_teamfights = num_team_fights_df.ix[match_id, 0]
+    teamfights_before_ten_min = single_game_teamfight_info.reset_index(drop=True).ix[:num_teamfights*10 - 1]
+    if teamfights_before_ten_min.shape[0] == 0:
+        return [0, 0]
+    radiant_net_death_count = teamfights_before_ten_min[teamfights_before_ten_min.player_slot<50]['deaths'].sum()
+    dire_net_death_count = teamfights_before_ten_min[teamfights_before_ten_min.player_slot >50]['deaths'].sum()
+    return [radiant_net_death_count, dire_net_death_count]
 
 def get_hero_index_mapping(heros_chart):
     '''
