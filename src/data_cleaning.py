@@ -17,7 +17,6 @@ def assign_player_team(players_df):
     players_df['radiant_player'] = players_df['player_slot'] < 50
     return players_df
 
-# Remember to integrate construct_hero_selection_df with get_hero_selection, better in a class
 def construct_hero_selection_df(players_df, heros_chart):
     '''
     Input: player info dataframe and heros info dataframe
@@ -33,18 +32,18 @@ def construct_hero_selection_df(players_df, heros_chart):
     dire_heros = hero_names.apply(lambda x: x + '_dire').tolist()
     hero_two_teams = radiant_heros + dire_heros
 
-    hero_selection_raw = players_df.groupby('match_id').apply(get_hero_selection)
-    return pd.DataFrame(data=hero_selection_raw.apply(pd.Series).values, index=range(50000), columns=hero_two_teams)
+    hero_selection_raw = players_df.groupby('match_id').apply(get_hero_selection, num_heros=num_heros).apply(pd.Series).values
+    return pd.DataFrame(data=hero_selection_raw, index=range(50000), columns=hero_two_teams)
 
-def get_hero_selection(single_game_player_info):
+def get_hero_selection(single_game_player_info, num_heros):
     '''
     Input: player info from a single game
     Output: one row of NumPy array representing the hero selection by both teams
     '''
-    hero_selection_row = np.zeros(224)
+    hero_selection_row = np.zeros(2 * num_heros)
     # Must subtract hero_id by 1 because they start from 1 to 112, index start 1 lower
     radiant_heros = single_game_player_info[single_game_player_info.radiant_player].hero_id.values - 1
-    dire_heros = single_game_player_info[~single_game_player_info.radiant_player].hero_id.values + 112 - 1
+    dire_heros = single_game_player_info[~single_game_player_info.radiant_player].hero_id.values + num_heros - 1
 
     hero_selections = np.append(radiant_heros, dire_heros)
     hero_selection_row[hero_selections] = 1
@@ -132,7 +131,8 @@ def get_hero_roles(link):
 def construct_hero_roles(hero_index_mapping=None):
     '''
     Input: Optional hero_index_mapping
-    Output: if no hero_index_mapping is provided, then return dictionary with hero names as keys and list of roles as values. Otherwise, the key will be mapped indexes.
+    Output: if no hero_index_mapping is provided, then return dictionary with hero names as keys and\
+            list of roles as values. Otherwise, the key will be mapped indexes.
     '''
     hero_facebook = requests.get('http://www.dota2.com/heroes/')
     soup = BeautifulSoup(hero_facebook.content, 'html.parser')
@@ -147,13 +147,13 @@ def construct_hero_roles(hero_index_mapping=None):
                     hero_roles[link] = get_hero_roles(link)
                 except AttributeError:
                     continue
-            # time.sleep(random.random())
+            time.sleep(random.random())
     for link in hero_roles.keys():
         hero_roles[link.split('/')[-2]] = hero_roles.pop(link)
     if hero_index_mapping:
         for hero in hero_roles.keys():
             # The get method here is specifically used to prevent conflict with MonkeyKing, who is not present for the current data
-            hero_roles[hero_index_mapping.get(hero, 113)] = hero_roles.pop(hero)
+            hero_roles[hero_index_mapping.get(hero, 112)] = hero_roles.pop(hero)
     return hero_roles
 
 # Remember to integrate construct_hero_composition_df with get_game_hero_composition, better in a class without GLOBALs
@@ -164,10 +164,11 @@ def construct_hero_composition_df(players_df, hero_attribute_df):
     '''
     total_roles = hero_attribute_df.columns.tolist()
     roles_both_teams = [role+'_radiant' for role in total_roles] + [role+'_dire' for role in total_roles]
-    hero_compositions = players_df.groupby('match_id').apply(get_game_hero_composition)
-    return pd.DataFrame(data=hero_compositions.apply(pd.Series).values, index=range(50000), columns=roles_both_teams)
+    hero_compositions = players_df.groupby('match_id').apply(get_game_hero_composition,
+                        hero_attribute_df=hero_attribute_df).apply(pd.Series).values
+    return pd.DataFrame(data=hero_compositions, index=range(50000), columns=roles_both_teams)
 
-def get_game_hero_composition(single_game_player_info):
+def get_game_hero_composition(single_game_player_info, hero_attribute_df):
     '''
     Input: player info from a single game
     Output: hero compositions for both radiants and dires from the given game
@@ -181,7 +182,6 @@ def construct_hero_attribute_df(hero_roles):
     Input: a dictionary with hero indexes as keys and lists of roles as values
     Output: an attribute DataFrame that gives 1 if a hero takes on a role, and 0 otherwise
     '''
-    global hero_attribute_df
     total_roles = []
     for roles in hero_roles.itervalues():
         total_roles += roles
@@ -193,18 +193,79 @@ def construct_hero_attribute_df(hero_roles):
     return hero_attribute_df
 
 def construct_hard_coded_hero_attribute_df(filepath='dota-2-matches/hero_attributes.csv'):
-    global hero_attribute_df
+    '''
+    Input: path to the hardcoded hero attribute csv file
+    Output: hardcoded hero attribute DataFrame
+    '''
     hero_attribute_df = pd.read_csv(filepath)
     return hero_attribute_df
 
 def get_interaction_terms(hero_composition_df):
     '''
-    Input: hero composition dataframe
-    Output: expanded hero composition dataframe with all interaction terms included
+    Input: hero composition DataFrame
+    Output: expanded hero composition DataFrame with all interaction terms included
     '''
     for interaction_term in combinations(hero_composition_df.columns.tolist(), 2):
         hero_composition_df[interaction_term[0]+'-x-'+interaction_term[1]] = hero_composition_df[interaction_term[0]] * hero_composition_df[interaction_term[1]]
     return hero_composition_df
+
+def construct_ten_min_firstblood_df(objectives_df):
+    '''
+    Input: objectives DataFrame
+    Output: every first blood that happened within the first 10 minutes of the game, 1 for radiant, 0 for dire.
+            The output will get joined with the feature DataFrame later, any NaNs that results from the join will be filtered
+            out when I use pd.get_dummies().
+    '''
+    ten_min_firstblood = objectives_df[(objectives_df.time<=600) & (objectives_df.subtype=='CHAT_MESSAGE_FIRSTBLOOD')]
+    ten_min_firstblood = ten_min_firstblood.drop(['player1', 'player2', 'subtype', 'team', 'time', 'value'], axis=1)
+    ten_min_firstblood['radiant_firstblood'] = (ten_min_firstblood['slot'] < 5).astype(int)
+    ten_min_firstblood = ten_min_firstblood.drop('slot', axis=1)
+    return ten_min_firstblood
+
+def get_game_hero_info(players_df, hero_attribute_df):
+    '''
+    Input: players info DataFrame and hero attribute DataFrame
+    Output: reduced hero info for each game, includes match number, player position,
+            whether the player is on radiant or not and the main role of the hero selected
+    '''
+    major_roles = hero_attribute_df.apply(np.argmax, axis=1)
+    game_hero_info_df = players_df[['match_id', 'hero_id', 'player_slot', 'radiant_player']].copy()
+    game_hero_info_df['role'] = major_roles.ix[game_hero_info_df.hero_id].reset_index(drop=True)
+    return game_hero_info_df
+
+def construct_role_check_df(game_hero_info_df):
+    '''
+    Input: reduced hero info for each game
+    Output: check whether each team in every game has too many carries, 1 for yes, 0 otherwise
+    '''
+    checked_roles = ['Radiant_Carries', 'Dire_Carries', 'Radiant_Supports', 'Dire_Supports']
+    role_check_raw = game_hero_info_df.groupby('match_id').apply(get_carry_support_count).apply(pd.Series).values
+    role_check_df = pd.DataFrame(role_check_raw, index=range(50000), columns=checked_roles)
+    role_check_df['too_many_carries_radiant'] = (role_check_df['Radiant_Carries'] >= 3).astype(int)
+    role_check_df['too_many_carries_dire'] = (role_check_df['Dire_Carries'] >= 3).astype(int)
+    return role_check_df[['too_many_carries_radiant', 'too_many_carries_dire']]
+
+def get_carry_support_count(single_game_hero_info):
+    '''
+    Input: reduced hero info for one single game
+    Output: number of players in each role=> [Carry, Support(merged from Hard and Farm Support), Offlane, Mid]
+    '''
+    radiant_count = single_game_hero_info[single_game_hero_info.radiant_player].role.value_counts().to_dict()
+    dire_count = single_game_hero_info[~single_game_hero_info.radiant_player].role.value_counts().to_dict()
+    radiant_support_count = radiant_count.get('Farm_Support', 0) + radiant_count.get('Hard_Support', 0)
+    dire_support_count = dire_count.get('Farm_Support', 0) + dire_count.get('Hard_Support', 0)
+    return [radiant_count.get('Carry', 0), dire_count.get('Carry', 0), radiant_support_count, dire_support_count]
+
+def construct_long_player_gold_df(ten_min_max_wealth):
+    '''
+    Input: the max amount of wealth (gold, last hits, experience) for each player within the first 10 minutes
+    Output: long formatted DataFrame that unpivots the gold columns (for every player) onto the match_id column.
+            This will be merged with the game_hero_info_df
+    '''
+    long_player_gold_df = pd.melt(ten_min_max_wealth.ix[:, 0::3].reset_index(), id_vars='match_id', var_name='player_slot',
+                                  value_name='max_gold')
+    long_player_gold_df['player_slot'] = long_player_gold_df['player_slot'].apply(lambda string: int(string.split('_')[-1]))
+    return long_player_gold_df.sort_values(by=['match_id', 'player_slot']).reset_index(drop=True)
 
 if __name__ == '__main__':
     players_df = pd.read_csv('dota-2-matches/players.csv')
