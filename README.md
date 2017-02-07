@@ -11,3 +11,8 @@ The project will focus on predicting DotA 2 match outcomes by looking at the fir
 6. Plot accuracy of my model over varying observed timeframe of a match to see if there are generic deciding moments in matches. 
 
 It is important to note that my project outlook can still change as I dive into it for the next 3~4 weeks. I will keep updating this repo to account for any change in plans.
+
+
+For those of you interested in the dataset I used, here's the link:
+
+https://www.kaggle.com/devinanzelmo/dota-2-matches
