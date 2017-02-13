@@ -6,9 +6,6 @@ import time
 from bs4 import BeautifulSoup
 from itertools import combinations
 
-hero_attribute_df = pd.read_csv('dota-2-matches/hero_attributes.csv')
-
-
 def assign_player_team(players_df):
     '''
     Input: player info dataframe
@@ -170,7 +167,6 @@ def construct_hero_roles(hero_index_mapping=None):
             hero_roles[hero_index_mapping.get(hero, 112)] = hero_roles.pop(hero)
     return hero_roles
 
-# Remember to integrate construct_hero_composition_df with get_game_hero_composition, better in a class without GLOBALs
 def construct_hero_composition_df(players_df, hero_attribute_df):
     '''
     Input: player info dataframe, heros info dataframe and a roles for each hero
@@ -252,23 +248,20 @@ def construct_role_check_df(game_hero_info_df):
     Input: reduced hero info for each game
     Output: check whether each team in every game has too many carries, 1 for yes, 0 otherwise
     '''
-    checked_roles = ['Radiant_Carries', 'Dire_Carries', 'Radiant_Supports', 'Dire_Supports']
-    role_check_raw = game_hero_info_df.groupby('match_id').apply(get_carry_support_count).apply(pd.Series).values
-    role_check_df = pd.DataFrame(role_check_raw, index=range(50000), columns=checked_roles)
-    role_check_df['too_many_carries_radiant'] = (role_check_df['Radiant_Carries'] >= 3).astype(int)
-    role_check_df['too_many_carries_dire'] = (role_check_df['Dire_Carries'] >= 3).astype(int)
-    return role_check_df[['too_many_carries_radiant', 'too_many_carries_dire']]
+    checked_too_many_roles = ['too_many_of_one_radiant', 'too_many_of_one_dire']
+    role_check_raw = game_hero_info_df.groupby('match_id').apply(get_too_many_roles).apply(pd.Series).values
+    return pd.DataFrame(role_check_raw, index=range(50000), columns=checked_too_many_roles)
 
-def get_carry_support_count(single_game_hero_info):
+def get_too_many_roles(single_game_hero_info):
     '''
     Input: reduced hero info for one single game
-    Output: number of players in each role=> [Carry, Support(merged from Hard and Farm Support), Offlane, Mid]
+    Output: check whether there are too many of one role => [Carry, Support(merged from Hard and Farm Support), Offlane, Mid]
     '''
     radiant_count = single_game_hero_info[single_game_hero_info.radiant_player].role.value_counts().to_dict()
     dire_count = single_game_hero_info[~single_game_hero_info.radiant_player].role.value_counts().to_dict()
-    radiant_support_count = radiant_count.get('Farm_Support', 0) + radiant_count.get('Hard_Support', 0)
-    dire_support_count = dire_count.get('Farm_Support', 0) + dire_count.get('Hard_Support', 0)
-    return [radiant_count.get('Carry', 0), dire_count.get('Carry', 0), radiant_support_count, dire_support_count]
+    radiant_check = int(max(radiant_count.values()) >= 3)
+    dire_check = int(max(dire_count.values()) >= 3)
+    return [radiant_check, dire_check]
 
 def construct_long_player_gold_df(ten_min_max_wealth):
     '''
@@ -281,21 +274,60 @@ def construct_long_player_gold_df(ten_min_max_wealth):
     long_player_gold_df['player_slot'] = long_player_gold_df['player_slot'].apply(lambda string: int(string.split('_')[-1]))
     return long_player_gold_df.sort_values(by=['match_id', 'player_slot']).reset_index(drop=True)
 
-if __name__ == '__main__':
-    players_df = pd.read_csv('dota-2-matches/players.csv')
-    heros_chart = pd.read_csv('dota-2-matches/hero_names.csv')
-    players_time_df = pd.read_csv('dota-2-matches/player_time.csv')
+def construct_role_gold_interaction_df(game_hero_info_df, long_player_gold_df):
+    '''
+    Input: reduced hero info for all games, long formatted DataFrame of player_slot and their respective gold
+    Output: merge two input DataFrames together and generate an extra column of each player's max gold difference from the
+            mean max gold of their match
+    '''
+    hero_gold_info = game_hero_info_df.merge(long_player_gold_df, on=['match_id', 'player_slot'])
+    hero_gold_avg_comp = hero_gold_info.groupby('match_id')['max_gold'].apply(lambda hero_gold: hero_gold - hero_gold.mean())
+    return hero_gold_info.join(hero_gold_avg_comp, rsuffix='_diff_from_match_mean')
 
-    players_df = assign_player_team(players_df)
+def construct_carry_comparison_df(role_gold_interaction_df):
+    '''
+    Input: role and gold interaction DataFrame generated from hero info and long formatted player gold info
+    Output: return two columns that tells whether Radiant or Dire carry is in the lead in terms of net_wealth
+            Only compares in the case where each team has at least one carry
+    '''
+    carry_status_comparison = role_gold_interaction_df.groupby('match_id').apply(get_carry_comparison)
+    carry_status_df = pd.DataFrame(carry_status_comparison, columns=['carry_status_comparison'])
+    dummies = pd.get_dummies(carry_status_df.carry_status_comparison).rename(
+                             columns={-1:'Unknown', 0:'Dire_lead', 1:'Radiant_lead'})
+    return dummies[['Radiant_lead', 'Dire_lead']]
 
-    hero_selection_df = construct_hero_selection_df(players_df, heros_chart)
-    # These two should check that columns are correctly specified
-    # and that each game(row) has 10 selections
-    print '----------Hero Selection DataFrame----------'
-    print hero_selection_df.head()
-    print hero_selection_df.sum(axis=1)[:5]
-    print '\n'
+def get_carry_comparison(single_game_role_status):
+    '''
+    Input: role and gold interaction info for a single game
+    Output: return -1 if either of the team does not have a carry
+            return 1 if Radiant carry's max gold is greater than that of Dire carry
+            otherwise return 0
+    '''
+    carries_of_the_match = single_game_role_status[single_game_role_status.role == 'Carry']
+    if len(carries_of_the_match['radiant_player'].unique()) < 2:
+        return -1
+    radiant_carries = carries_of_the_match[carries_of_the_match.radiant_player]
+    dire_carries = carries_of_the_match[~carries_of_the_match.radiant_player]
+    if radiant_carries['max_gold_diff_from_match_mean'].max() > dire_carries['max_gold_diff_from_match_mean'].max():
+        return 1
+    else:
+        return 0
 
-    x_seconds_df = construct_x_seconds_df(players_time_df, x=600)
-    print '----------Ten Min Bench Mark----------'
-    print ten_min_bench_mark.head()
+def construct_max_gold_comparison(role_gold_interaction_df):
+    '''
+    Input: role and gold interaction DataFrame generated from hero info and long formatted player gold info
+    Output: compare max of max player net wealth from each team, gives 1 if Radiant is greater and 0 otherwise
+    '''
+    max_gold_comparison = role_gold_interaction_df.groupby('match_id').apply(get_max_gold_comparison)
+    return pd.DataFrame(max_gold_comparison, columns=['max_gold_comparison'])
+
+def get_max_gold_comparison(single_game_role_status):
+    '''
+    Input: role and gold interaction info for a single game
+    Output: returns 1 if max of max player net wealth from Radiant is higher, and 0 otherwise
+    '''
+    max_gold_both_teams = single_game_role_status.groupby('radiant_player').apply(lambda game: game.max_gold.max())
+    if (max_gold_both_teams.ix[True] > max_gold_both_teams.ix[False]):
+        return 1
+    else:
+        return 0
