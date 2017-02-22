@@ -16,11 +16,11 @@ https://www.kaggle.com/devinanzelmo/dota-2-matches
 
 ## Directory
 
-### 1. SRC
+#### 1. SRC
 This folder contains all python scripts I used for feature engineering and data visualization.
-### 2. img
+#### 2. img
 This folder contains all useful/insightful graphs for my project.
-### 3. DotA2_presentation_explanatory
+#### 3. DotA2_Presentation
 This is the verbose version of my project presentation. You will find explanation for my decisions and findings in there.
-### 4. DotA2_Explore_Analyze
+#### 4. DotA2_Explore_Analyze
 This is Jupyter Notebook version of my data exploration and analysis, if you want see more beyond the powerpoint.
