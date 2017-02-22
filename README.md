@@ -13,3 +13,12 @@ The project focuses on predicting DotA 2 match outcomes by looking at the first 
 For those of you interested in the dataset I used, here's the link:
 
 https://www.kaggle.com/devinanzelmo/dota-2-matches
+
+## Directory
+
+### SRC
+This folder contains all python scripts I used for feature engineering and data visualization.
+### Dota2_presentation_explanatory
+This is the verbose version of my project presentation. You will find explanation for my decisions and findings in there.
+### accuracy_vs_time
+This is the visualization of my model's accuracy over time.
