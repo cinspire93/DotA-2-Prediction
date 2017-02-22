@@ -1,5 +1,5 @@
 # CapstoneProject
-## This will be the repo for my Capstone Project as Galvanize San Francisco.
+## Welcome to the repo for my Capstone Project as Galvanize San Francisco.
 
 The project focuses on predicting DotA 2 match outcomes by looking at the first 10 minutes of each match. Here are the goals:
 
