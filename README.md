@@ -16,7 +16,7 @@ https://www.kaggle.com/devinanzelmo/dota-2-matches
 
 ## Directory
 
-#### 1. SRC
+#### 1. src
 This folder contains all python scripts I used for feature engineering and data visualization.
 #### 2. img
 This folder contains all useful/insightful graphs for my project.
