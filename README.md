@@ -31,3 +31,16 @@ What I found was a linear relationship between the time passed and the accuracy 
 
 ### Conclusion
 In conclusion, the game is balanced with respect to time, but no so much with respect to hero selection. However, I believe that the ability to out-draft one's enemy team is a necessary skill for any good player. The accuracy of my model is not so high to cause DotA 2 developers panic, but it is decent enough to make my model a solid hero strategy recommender. Moreover, the in-game wagering system could also benefit quite a lot from my model.
+
+### Future Work
+1. Reference the official DotA 2 api and parse the rich data myself and see if I could get more useful features that would improve my model
+2. Look at game information from a player perspective, predicting the outcome of any given match based on player skills
+
+## Questions:
+Feel free to reach out to me at __cchen9331@gmail.com__
+
+## Directory:
+1. _**img**_ folder contains all graphs that I found useful for my analysis
+2. _**src**_ folder contains my python files that I used for cleaning up my data, feature engineering and plotting
+3. _**DotA2_Explore_Analyze**_ is the Jupyter notebook version of my analysis, and offers sneakpeak of the dataset
+4. _**DotA2_Presentation**_ is the verbose version of my presentation on DotA 2 project
