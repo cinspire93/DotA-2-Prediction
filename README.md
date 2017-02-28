@@ -26,6 +26,7 @@ The first question is valid in the sense that boosting and random forest classif
 
 The second question is more interesting. A 70% accuracy in prediction was by no means low. It was very tempting to conclude that DotA 2 is an unbalanced game. However, I decided to dig more into the issue. Since I was looking at the net worth information at the 10-minute mark, my model was in fact absorbing a time slice. I could collect all the net worth information at 60-second intervals within the first 10 minutes, retrain my model at each of those time marks and check how accuracy stacks up against time.
 ![Accuracy vs. Time](/img/accuracy_vs_time.png)
+
 What I found was a linear relationship between the time passed and the accuracy of my model. The rate at which game-deciding information increased was constant. This meant that there was no point in time within the first 10 minutes that could offer significant insight into how the game would end. In terms of time, the game is actually balanced because early game should not decide the outcome. Notice, however, that my model's accuracy did not start from 50% at time 0. This implied that the other part of my feature matrix, or hero selection, actually mattered. Bad strategic decisions when picking heroes can actually cost a team the game.
 
 ### Conclusion
