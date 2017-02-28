@@ -1,18 +1,4 @@
-# Capstone Project
-## Welcome to the repo for my Capstone Project as Galvanize San Francisco.
-
-The project focuses on predicting DotA 2 match outcomes by looking at the first 10 minutes of each match. Here are the goals:
-
-1. Work on a set of 50,000 ranked matches in DotA 2 before the infamous 7.00 patch, and later expand into an even larger dataset offered by yasp.co on Academic Torrents.
-2. Data for each game contains massive amounts of information. However, no standalone features is provided. I have to create my feature matrix from scratch by aggregating information over multiple datasets.
-3. Start by focusing on the first 10 minutes of each game, find the influence of hero drafting and player information within that timeframe over the outcome.
-4. There are many ways I could aggregate player information within the first 10 minutes of the game, I will try multiple feature engineering strategies to find the best set of features.
-5. Investigate the interaction between player(hero) roles and match specific information to see if I could improve prediction accuracy.
-6. Plot accuracy of my model over varying observed timeframe of a match to see if there are generic deciding moments in matches.
-
-For those of you interested in the dataset I used, here's the link:
-
-https://www.kaggle.com/devinanzelmo/dota-2-matches
+# DotA 2 Match Prediction
 
 ## Objective:
 One of the most nagging issue in the gaming industry is game balance. Imagine a 40-minute game, whose outcome can be predicted reliably at the 10-minute mark every single time. Would you play this game? My guess is no. Any predictable game is, for the lack of a better word, lame. In gaming terms, such is game is called unbalanced. Game imbalance is almost always caused by some overpowered mechanics that could single-handedly decide the outcome of a game. My goal is to investigate whether DotA 2 is a balanced game.
@@ -30,5 +16,17 @@ The target variable (outcome of the match) is very balanced. The heavy lifting w
 
 #### Feature Engineering
 1. Hero Selection: Every player has to select a different hero for each game. DotA 2 heroes do not just look different, they also serve different purposes. It is pretty intuitive that certain hero compositions will help players win a game. There were 112 heroes in total. I doubled the roster to create a list for both the radiant and the dire team, and gave 1 to selected heroes and 0 otherwise.
-2. Net Worth at the 10-minute mark: Net worth represents the total amount of gold (in terms of both item assets and gold itself). The higher the net worth, the better items a hero could get. Good items both amplify a hero's power and cover its deficiency. Thus, heroes with higher net worth will be more likely to win the game. I got this feature by referencing the player_time.csv in the dataset.
+2. Net worth at the 10-minute mark: Net worth represents the total amount of gold (in terms of both item assets and gold itself). The higher the net worth, the better items a hero could get. Good items both amplify a hero's power and cover its deficiency. Thus, heroes with higher net worth will be more likely to win the game. I got this feature by referencing the player_time.csv in the dataset.
 3. Others: Other features that I engineered include net death counts from team fights before 10 minutes, team composition of hero roles and the interaction between each hero's role and its net worth. Higher team fight death counts implies that a team is more likely to lose. Having a bad composition of roles (too many or few of one role) may put a team at a disadvantage. A non-core hero doing extremely well in terms of net worth may indicate that a team is dominating the game. Sadly, these features did not help much.
+
+### Results
+I ended up using logistic regression as my model and hero selection + net worth at the 10-minute mark as my feature matrix. This model gave me an accuracy score of 68.5%. There are two questions: Why did I use logistic regression instead of any other classifier model? How do I make sense of the near 70% accuracy? Allow me to address them one by one.
+
+The first question is valid in the sense that boosting and random forest classifiers are known to be excellent models that almost always outperform logistic regression. However, my dataset provided an exception. My logistic regression model consistently bested boosting and random forest classifiers in terms of accuracy. My hypothesis for such bizarre phenomenon is the sparsity of information. When every feature in my feature matrix contributes somewhat equally to the game outcome, it is hard for classifiers that rely on information gain to generate accurate results. In other words, boosting and random forest classifiers will struggle with finding the best features that predict the outcome of the game because every feature is useful. I manipulated the random subsetting of features to be 80% to 100% (non-stochastic boost or bagged forest) in hopes of avoiding missing important features. The results still did not improve much. I was careful with my application of logistic regression as well. Logistic regression required that each game should be somewhat independent of each other. This is in general not true, because one player can play multiple games, often with the same people. Fortunately, the player information indicated that players in general played no more than 100 games in a sample of 50000 games. This made the independence assumption tangible, and by extension, logistic regression reasonable.
+
+The second question is more interesting. A 70% accuracy in prediction was by no means low. It was very tempting to conclude that DotA 2 is an unbalanced game. However, I decided to dig more into the issue. Since I was looking at the net worth information at the 10-minute mark, my model was in fact absorbing a time slice. I could collect all the net worth information at 60-second intervals within the first 10 minutes, retrain my model at each of those time marks and check how accuracy stacks up against time.
+![Accuracy vs. Time](/img/accuracy_vs_time.png)
+What I found was a linear relationship between the time passed and the accuracy of my model. The rate at which game-deciding information increased was constant. This meant that there was no point in time within the first 10 minutes that could offer significant insight into how the game would end. In terms of time, the game is actually balanced because early game should not decide the outcome. Notice, however, that my model's accuracy did not start from 50% at time 0. This implied that the other part of my feature matrix, or hero selection, actually mattered. Bad strategic decisions when picking heroes can actually cost a team the game.
+
+### Conclusion
+In conclusion, the game is balanced with respect to time, but no so much with respect to hero selection. However, I believe that the ability to out-draft one's enemy team is a necessary skill for any good player. The accuracy of my model is not so high to cause DotA 2 developers panic, but it is decent enough to make my model a solid hero strategy recommender. Moreover, the in-game wagering system could also benefit quite a lot from my model.
